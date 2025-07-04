@@ -1,0 +1,51 @@
+[gd_scene load_steps=4 format=3 uid="uid://bh4n5j8kl2mxr"]
+
+[ext_resource type="Script" uid="uid://cj9k4l5m6n7o8" path="res://AIController.gd" id="1_ai_controller"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ai_collision"]
+size = Vector2(20, 40)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_detection"]
+radius = 150.0
+
+[node name="AIChaser" type="CharacterBody2D"]
+motion_mode = 1
+script = ExtResource("1_ai_controller")
+
+[node name="AISprite" type="ColorRect" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -10.0
+offset_top = -20.0
+offset_right = 10.0
+offset_bottom = 20.0
+color = Color(1, 0.2, 0.2, 1)
+
+[node name="AICollision" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_ai_collision")
+
+[node name="DetectionArea" type="Area2D" parent="."]
+
+[node name="DetectionCollision" type="CollisionShape2D" parent="DetectionArea"]
+shape = SubResource("CircleShape2D_detection")
+
+[node name="LineOfSightRay" type="RayCast2D" parent="."]
+target_position = Vector2(0, -100)
+collision_mask = 3
+collide_with_areas = true
+collide_with_bodies = true
+
+[node name="NavigationAgent" type="NavigationAgent2D" parent="."]
+path_desired_distance = 4.0
+target_desired_distance = 4.0
+path_max_distance = 10.0
+avoidance_enabled = true
+radius = 15.0
+max_speed = 200.0
+
+[connection signal="body_entered" from="DetectionArea" to="." method="_on_detection_area_body_entered"]
+[connection signal="body_exited" from="DetectionArea" to="." method="_on_detection_area_body_exited"]
+[connection signal="navigation_finished" from="NavigationAgent" to="." method="_on_navigation_agent_navigation_finished"]
