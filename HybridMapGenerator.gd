@@ -8,6 +8,7 @@ extends Node2D
 @export var num_main_roads: int = 3
 @export var residential_block_size: int = 8
 @export var connection_density: float = 0.3
+@export var border_margin: int = 2
 
 # Road network data
 var main_roads: Array = []
@@ -40,7 +41,12 @@ func setup_tiles():
 		"t_top": find_tile_by_name("T_Haut"),
 		"t_bottom": find_tile_by_name("T_Bas"),
 		"t_left": find_tile_by_name("T_Gauche"),
-		"t_right": find_tile_by_name("T_Droit")
+		"t_right": find_tile_by_name("T_Droit"),
+		"deadend_north": find_tile_by_name("Ligne_noir"),
+		"deadend_east": find_tile_by_name("Ligne_noir"),
+		"deadend_south": find_tile_by_name("Ligne_noir"),
+		"deadend_west": find_tile_by_name("Ligne_noir"),
+		"deadend_block": find_tile_by_name("Ligne_noir")
 	}
 
 func find_tile_by_name(texture_name: String) -> int:
@@ -83,6 +89,10 @@ func generate_hybrid_map():
 	place_road_tiles()
 	print("Phase 4: Placed road tiles")
 	
+	# Phase 4.5: Close off dead-ends properly
+	close_deadends()
+	print("Phase 4.5: Closed dead-ends")
+	
 	# Phase 5: Generate navigation region for AI pathfinding
 	generate_navigation_region()
 	print("Phase 5: Generated navigation region")
@@ -100,35 +110,35 @@ func generate_main_roads():
 	# Generate main arterial roads that cross the map
 	for i in range(num_main_roads):
 		if i == 0:
-			# Main horizontal road through center
+			# Main horizontal road through center (with border margin)
 			var y = map_height / 2
-			for x in range(map_width):
+			for x in range(border_margin, map_width - border_margin):
 				road_grid[x][y] = RoadType.MAIN_ROAD
-			main_roads.append({"type": "horizontal", "position": y, "start": 0, "end": map_width - 1})
+			main_roads.append({"type": "horizontal", "position": y, "start": border_margin, "end": map_width - border_margin - 1})
 		
 		elif i == 1:
-			# Main vertical road through center
+			# Main vertical road through center (with border margin)
 			var x = map_width / 2
-			for y in range(map_height):
+			for y in range(border_margin, map_height - border_margin):
 				road_grid[x][y] = RoadType.MAIN_ROAD
-			main_roads.append({"type": "vertical", "position": x, "start": 0, "end": map_height - 1})
+			main_roads.append({"type": "vertical", "position": x, "start": border_margin, "end": map_height - border_margin - 1})
 		
 		else:
-			# Additional arterial roads
+			# Additional arterial roads (with border margin)
 			if randf() < 0.5:
 				# Horizontal road
-				var y = randi_range(5, map_height - 6)
-				for x in range(map_width):
+				var y = randi_range(border_margin + 3, map_height - border_margin - 4)
+				for x in range(border_margin, map_width - border_margin):
 					if road_grid[x][y] == RoadType.EMPTY:
 						road_grid[x][y] = RoadType.MAIN_ROAD
-				main_roads.append({"type": "horizontal", "position": y, "start": 0, "end": map_width - 1})
+				main_roads.append({"type": "horizontal", "position": y, "start": border_margin, "end": map_width - border_margin - 1})
 			else:
 				# Vertical road
-				var x = randi_range(5, map_width - 6)
-				for y in range(map_height):
+				var x = randi_range(border_margin + 3, map_width - border_margin - 4)
+				for y in range(border_margin, map_height - border_margin):
 					if road_grid[x][y] == RoadType.EMPTY:
 						road_grid[x][y] = RoadType.MAIN_ROAD
-				main_roads.append({"type": "vertical", "position": x, "start": 0, "end": map_height - 1})
+				main_roads.append({"type": "vertical", "position": x, "start": border_margin, "end": map_height - border_margin - 1})
 
 func generate_residential_blocks():
 	residential_blocks = []
@@ -137,8 +147,8 @@ func generate_residential_blocks():
 	var block_attempts = 20
 	
 	for attempt in range(block_attempts):
-		var block_x = randi_range(2, map_width - residential_block_size - 2)
-		var block_y = randi_range(2, map_height - residential_block_size - 2)
+		var block_x = randi_range(border_margin, map_width - residential_block_size - border_margin)
+		var block_y = randi_range(border_margin, map_height - residential_block_size - border_margin)
 		
 		# Check if area is mostly empty
 		var empty_count = 0
@@ -193,8 +203,8 @@ func generate_connecting_roads():
 	var connection_attempts = int(map_width * map_height * connection_density / 100)
 	
 	for attempt in range(connection_attempts):
-		var start_x = randi() % map_width
-		var start_y = randi() % map_height
+		var start_x = randi_range(border_margin, map_width - border_margin - 1)
+		var start_y = randi_range(border_margin, map_height - border_margin - 1)
 		
 		# Only start from existing roads
 		if road_grid[start_x][start_y] != RoadType.EMPTY:
@@ -208,7 +218,8 @@ func create_connecting_path(start_x: int, start_y: int):
 	var y = start_y
 	
 	for i in range(length):
-		if x >= 0 and x < map_width and y >= 0 and y < map_height:
+		# Ensure we stay within the border margins
+		if x >= border_margin and x < map_width - border_margin and y >= border_margin and y < map_height - border_margin:
 			if road_grid[x][y] == RoadType.EMPTY:
 				road_grid[x][y] = RoadType.CONNECTOR
 			
@@ -216,12 +227,22 @@ func create_connecting_path(start_x: int, start_y: int):
 			if randf() < 0.2:
 				direction = randi() % 4
 		
-		# Move in current direction
+		# Move in current direction, but stop if we hit the border
+		var next_x = x
+		var next_y = y
 		match direction:
-			0: y -= 1  # North
-			1: x += 1  # East
-			2: y += 1  # South
-			3: x -= 1  # West
+			0: next_y -= 1  # North
+			1: next_x += 1  # East
+			2: next_y += 1  # South
+			3: next_x -= 1  # West
+		
+		# Only move if the next position is within border margins
+		if next_x >= border_margin and next_x < map_width - border_margin and next_y >= border_margin and next_y < map_height - border_margin:
+			x = next_x
+			y = next_y
+		else:
+			# Hit the border, stop generating this path
+			break
 
 func place_road_tiles():
 	for x in range(map_width):
@@ -246,8 +267,21 @@ func determine_tile_type(x: int, y: int) -> String:
 	
 	# Determine tile type based on connections
 	match connections:
-		0, 1:
-			return "horizontal" if east or west else "vertical"
+		0:
+			# Isolated road tile (shouldn't happen normally)
+			return "horizontal"
+		1:
+			# Dead-end - determine which direction it opens to
+			if north:
+				return "deadend_south"  # Road opens to the north, closed on south
+			elif south:
+				return "deadend_north"  # Road opens to the south, closed on north
+			elif east:
+				return "deadend_west"   # Road opens to the east, closed on west
+			elif west:
+				return "deadend_east"   # Road opens to the west, closed on east
+			else:
+				return "horizontal"     # Fallback
 		2:
 			if north and south:
 				return "vertical"
@@ -290,7 +324,34 @@ func generate_navigation_region():
 		print("Warning: NavigationRegion2D not found!")
 		return
 	
-	var navigation_polygon = NavigationPolygon.new()
+	# Clear any existing children from navigation region
+	for child in navigation_region.get_children():
+		child.queue_free()
+	
+	await get_tree().process_frame
+	
+	# Setup navigation using NavigationServer2D approach
+	var navigation_mesh = NavigationPolygon.new()
+	navigation_mesh.agent_radius = 10.0
+	
+	var source_geometry = NavigationMeshSourceGeometryData2D.new()
+	
+	# Create RID for the region
+	var region_rid = NavigationServer2D.region_create()
+	NavigationServer2D.region_set_enabled(region_rid, true)
+	NavigationServer2D.region_set_map(region_rid, get_world_2d().get_navigation_map())
+	
+	# Store references for callbacks
+	navigation_region.set_meta("navigation_mesh", navigation_mesh)
+	navigation_region.set_meta("source_geometry", source_geometry)
+	navigation_region.set_meta("region_rid", region_rid)
+	
+	# Parse source geometry and bake
+	parse_road_source_geometry(navigation_mesh, source_geometry)
+
+func parse_road_source_geometry(navigation_mesh: NavigationPolygon, source_geometry: NavigationMeshSourceGeometryData2D):
+	source_geometry.clear()
+	
 	var road_cells = []
 	
 	# Collect all road cells
@@ -303,77 +364,107 @@ func generate_navigation_region():
 		print("No road cells found for navigation!")
 		return
 	
-	# Create navigation polygons for road areas
 	var tile_size = road_layer.tile_set.tile_size
-	var polygons = []
 	
-	# Group connected road cells into larger polygons
-	var processed_cells = {}
+	print("Creating traversable outlines for ", road_cells.size(), " road tiles")
+	print("Using full tile size: ", tile_size, " for navigation areas")
 	
+	# Add traversable outlines for each road tile - use full tile size for perfect connection
 	for cell in road_cells:
-		if cell in processed_cells:
-			continue
+		var world_x = cell.x * tile_size.x
+		var world_y = cell.y * tile_size.y
 		
-		var connected_group = find_connected_road_cells(cell, road_cells, processed_cells)
-		if connected_group.size() > 0:
-			var polygon = create_polygon_from_cells(connected_group, tile_size)
-			if polygon.size() >= 3:
-				polygons.append(polygon)
+		# Create traversable outline covering the entire tile for perfect connection
+		var road_outline = PackedVector2Array()
+		road_outline.append(Vector2(world_x, world_y))                                    # top-left
+		road_outline.append(Vector2(world_x + tile_size.x, world_y))                     # top-right  
+		road_outline.append(Vector2(world_x + tile_size.x, world_y + tile_size.y))       # bottom-right
+		road_outline.append(Vector2(world_x, world_y + tile_size.y))                     # bottom-left
+		
+		source_geometry.add_traversable_outline(road_outline)
+		
+		# Debug first few outlines
+		if road_cells.find(cell) < 3:
+			print("Road tile ", cell, " at world pos (", world_x, ",", world_y, ")")
+			print("  Full tile outline: ", road_outline)
 	
-	# Add polygons to navigation polygon
-	for i in range(polygons.size()):
-		navigation_polygon.add_outline(polygons[i])
+	print("Added ", road_cells.size(), " traversable outlines")
 	
-	navigation_polygon.make_polygons_from_outlines()
-	navigation_region.navigation_polygon = navigation_polygon
+	# Start async baking
+	NavigationServer2D.bake_from_source_geometry_data_async(
+		navigation_mesh,
+		source_geometry,
+		on_navigation_baking_done
+	)
 
-func find_connected_road_cells(start_cell: Vector2i, all_cells: Array, processed: Dictionary) -> Array:
-	var connected = []
-	var stack = [start_cell]
+func on_navigation_baking_done():
+	print("Navigation mesh baking completed!")
 	
-	while stack.size() > 0:
-		var current = stack.pop_back()
-		if current in processed:
-			continue
-		
-		processed[current] = true
-		connected.append(current)
-		
-		# Check 4-directional neighbors
-		var neighbors = [
-			Vector2i(current.x + 1, current.y),
-			Vector2i(current.x - 1, current.y),
-			Vector2i(current.x, current.y + 1),
-			Vector2i(current.x, current.y - 1)
-		]
-		
-		for neighbor in neighbors:
-			if neighbor in all_cells and not neighbor in processed:
-				stack.append(neighbor)
+	# Get stored references
+	var navigation_mesh = navigation_region.get_meta("navigation_mesh")
+	var region_rid = navigation_region.get_meta("region_rid")
 	
-	return connected
+	# Update the region with the baked navigation mesh
+	NavigationServer2D.region_set_navigation_polygon(region_rid, navigation_mesh)
+	
+	# Also set it on the NavigationRegion2D node for compatibility
+	navigation_region.navigation_polygon = navigation_mesh
+	
+	print("- Navigation mesh polygon count: ", navigation_mesh.get_polygon_count())
+	print("- Navigation region updated with RID: ", region_rid)
 
-func create_polygon_from_cells(cells: Array, tile_size: Vector2i) -> PackedVector2Array:
-	if cells.size() == 0:
-		return PackedVector2Array()
+
+func close_deadends():
+	# Find all dead-end roads and ensure they're properly closed off
+	for x in range(map_width):
+		for y in range(map_height):
+			if road_grid[x][y] != RoadType.EMPTY:
+				var connections = count_road_connections(x, y)
+				if connections == 1:
+					# This is a dead-end, ensure it's closed off
+					close_deadend_tile(x, y)
+
+func count_road_connections(x: int, y: int) -> int:
+	var connections = 0
+	if has_road(x, y - 1): connections += 1  # North
+	if has_road(x, y + 1): connections += 1  # South
+	if has_road(x + 1, y): connections += 1  # East
+	if has_road(x - 1, y): connections += 1  # West
+	return connections
+
+func close_deadend_tile(x: int, y: int):
+	# For a dead-end tile, we need to ensure vehicles can't drive past it
+	# We do this by placing blocking tiles (black/noir tiles) at the dead-end
 	
-	# Find bounding box
-	var min_x = cells[0].x
-	var max_x = cells[0].x
-	var min_y = cells[0].y
-	var max_y = cells[0].y
+	# Find which direction the road doesn't connect to
+	var north = has_road(x, y - 1)
+	var south = has_road(x, y + 1)
+	var east = has_road(x + 1, y)
+	var west = has_road(x - 1, y)
 	
-	for cell in cells:
-		min_x = min(min_x, cell.x)
-		max_x = max(max_x, cell.x)
-		min_y = min(min_y, cell.y)
-		max_y = max(max_y, cell.y)
-	
-	# Create a simple rectangular polygon for the connected area
-	var polygon = PackedVector2Array()
-	polygon.append(Vector2(min_x * tile_size.x, min_y * tile_size.y))
-	polygon.append(Vector2((max_x + 1) * tile_size.x, min_y * tile_size.y))
-	polygon.append(Vector2((max_x + 1) * tile_size.x, (max_y + 1) * tile_size.y))
-	polygon.append(Vector2(min_x * tile_size.x, (max_y + 1) * tile_size.y))
-	
-	return polygon
+	# Place blocking tiles in the direction that should be closed
+	if not north and y > 0:
+		# Close off north - place black tile north of this position
+		place_blocking_tile(x, y - 1)
+	if not south and y < map_height - 1:
+		# Close off south - place black tile south of this position  
+		place_blocking_tile(x, y + 1)
+	if not east and x < map_width - 1:
+		# Close off east - place black tile east of this position
+		place_blocking_tile(x + 1, y)
+	if not west and x > 0:
+		# Close off west - place black tile west of this position
+		place_blocking_tile(x - 1, y)
+
+func place_blocking_tile(x: int, y: int):
+	# Only place blocking tile if the position is currently empty
+	if x >= 0 and x < map_width and y >= 0 and y < map_height:
+		if road_grid[x][y] == RoadType.EMPTY:
+			# Place a black/blocking tile
+			var tile_id = get_tile_id_for_type("deadend_block")
+			if tile_id != -1:
+				road_layer.set_cell(Vector2i(x, y), tile_id, Vector2i(0, 0))
+
+
+func get_road_grid() -> Array[Array]:
+	return road_grid

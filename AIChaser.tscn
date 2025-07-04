@@ -9,6 +9,8 @@ size = Vector2(20, 40)
 radius = 150.0
 
 [node name="AIChaser" type="CharacterBody2D"]
+collision_layer = 2
+collision_mask = 1
 motion_mode = 1
 script = ExtResource("1_ai_controller")
 
@@ -28,6 +30,8 @@ color = Color(1, 0.2, 0.2, 1)
 shape = SubResource("RectangleShape2D_ai_collision")
 
 [node name="DetectionArea" type="Area2D" parent="."]
+collision_layer = 4
+collision_mask = 2
 
 [node name="DetectionCollision" type="CollisionShape2D" parent="DetectionArea"]
 shape = SubResource("CircleShape2D_detection")

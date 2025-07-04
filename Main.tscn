@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://bwdxjhw2vbuwg"]
+[gd_scene load_steps=9 format=3 uid="uid://bwdxjhw2vbuwg"]
 
 [ext_resource type="Script" uid="uid://dyf1u48j3yua0" path="res://GameManager.gd" id="1_8xk7q"]
 [ext_resource type="PackedScene" uid="uid://cfp8cjm3aevr6" path="res://Player.tscn" id="2_f8jm5"]
@@ -6,6 +6,8 @@
 [ext_resource type="TileSet" uid="uid://kkttk2g3po5q" path="res://RoadTileSet.tres" id="4_tileset"]
 [ext_resource type="Script" uid="uid://dyhe66rgp2bsn" path="res://HybridMapGenerator.gd" id="5_hybrid_mapgen"]
 [ext_resource type="PackedScene" uid="uid://bh4n5j8kl2mxr" path="res://AIChaser.tscn" id="6_ai_chaser"]
+[ext_resource type="Script" uid="uid://ckak4l5m6n7pa" path="res://RoadBoundaryGenerator.gd" id="7_road_boundaries"]
+[ext_resource type="Script" uid="uid://bnan5k8j7l6o0" path="res://VehicleSpawner.gd" id="8_vehicle_spawner"]
 
 [node name="Main" type="Node2D"]
 
@@ -20,11 +22,13 @@ tile_set = ExtResource("4_tileset")
 
 [node name="NavigationRegion2D" type="NavigationRegion2D" parent="MapGenerator"]
 
-[node name="Player" parent="." instance=ExtResource("2_f8jm5")]
-position = Vector2(400, 300)
+[node name="RoadBoundaries" type="Node2D" parent="."]
+script = ExtResource("7_road_boundaries")
 
-[node name="AIChaser" parent="." instance=ExtResource("6_ai_chaser")]
-position = Vector2(200, 200)
+[node name="VehicleSpawner" type="Node2D" parent="."]
+script = ExtResource("8_vehicle_spawner")
+player_scene = ExtResource("2_f8jm5")
+ai_scene = ExtResource("6_ai_chaser")
 
 [node name="Camera" type="Camera2D" parent="."]
 script = ExtResource("3_h5n2w")
